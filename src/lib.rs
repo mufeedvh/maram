@@ -57,32 +57,42 @@ use std::path::Path;
 pub fn run_tree(path: &Path, args: &Args, config: &Config) -> Result<()> {
     log::debug!("Starting tree traversal at: {:?}", path);
     
-    // Streaming optimization for plain output
-    if matches!(args.output, OutputFormat::Plain) && args.dist.is_none() && !args.total_size {
-        log::debug!("Using streaming output");
+    // Merge CLI args with config to get final options first
+    let filter_opts = FilterOptions::from_args_and_config(args, config)?;
+    let format_opts = FormatOptions::from_args_and_config(args, config);
+    
+    // Check if we need buffered mode for advanced features
+    let needs_buffering = matches!(args.output, OutputFormat::Json | OutputFormat::Csv)
+        || args.dist.is_some()           // Distribution analysis
+        || args.total_size                // Total size calculation
+        || args.dir_sizes                 // Directory size calculation
+        || filter_opts.sort_by.is_some(); // Sorting required
+    
+    // Use streaming by default for better performance
+    if !needs_buffering {
+        log::debug!("Using streaming output for {:?} format", args.output);
         
-        // Merge CLI args with config to get final options
-        let filter_opts = FilterOptions::from_args_and_config(args, config)?;
+        // Apply config defaults properly
+        // Unicode defaults to true from config, use args.unicode only if explicitly set
+        let unicode = args.unicode || config.display.unicode;
+        let show_size = args.show_size || config.display.show_size;
+        let show_lines = args.show_lines || config.display.show_lines;
         
         // Use streaming walker for direct output
         let mut stream_walker = walker::StreamWalker::new(
             filter_opts,
             args.output,
-            args.show_size,
-            args.show_lines,
-            args.unicode,
+            show_size,
+            show_lines,
+            unicode,
         );
         
         return stream_walker.stream(path);
     }
     
     
-    // Standard path for full features
-    log::debug!("Using standard walker with full features");
-    
-    // Merge CLI args with config to get final options
-    let filter_opts = FilterOptions::from_args_and_config(args, config)?;
-    let format_opts = FormatOptions::from_args_and_config(args, config);
+    // Buffered path for features that need the full tree
+    log::debug!("Using buffered walker for advanced features");
     
     // Create walker with options
     let mut walker = Walker::new(path, filter_opts, args.threads)?;

@@ -23,6 +23,7 @@ use std::fs::{self, Metadata};
 use std::io::{self, Write, BufWriter};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
+use colored::*;
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -531,9 +532,13 @@ pub struct StreamWalker<'a> {
     filter_opts: FilterOptions,
     stdout: BufWriter<Box<dyn Write + 'a>>,
     format: FormatterOutputFormat,
-    _show_size: bool,
-    _show_lines: bool,
+    show_size: bool,
+    show_lines: bool,
     unicode: bool,
+    max_file_size: u64,
+    color_enabled: bool,
+    file_count: usize,
+    dir_count: usize,
 }
 
 
@@ -547,13 +552,18 @@ impl<'a> StreamWalker<'a> {
         unicode: bool,
     ) -> Self {
         let stdout: Box<dyn Write> = Box::new(io::stdout());
+        let color_enabled = atty::is(atty::Stream::Stdout);
         Self {
             filter_opts,
             stdout: BufWriter::with_capacity(8192, stdout),
             format,
-            _show_size: show_size,
-            _show_lines: show_lines,
+            show_size,
+            show_lines,
             unicode,
+            max_file_size: 1_073_741_824, // 1GB default
+            color_enabled,
+            file_count: 0,
+            dir_count: 0,
         }
     }
     
@@ -584,6 +594,16 @@ impl<'a> StreamWalker<'a> {
         let walker = Walker::new(root, self.filter_opts.clone(), 1)?;
         self.walk_and_print_tree(&walker, root, 0, &mut Vec::new())?;
         self.stdout.flush()?;
+        
+        // Print summary line like tree command
+        println!();
+        println!("{} {}, {} {}",
+            self.dir_count,
+            if self.dir_count == 1 { "directory" } else { "directories" },
+            self.file_count,
+            if self.file_count == 1 { "file" } else { "files" }
+        );
+        
         Ok(())
     }
     
@@ -644,15 +664,74 @@ impl<'a> StreamWalker<'a> {
             }
         }
         
-        // Print name
+        // Get metadata for the path
+        let metadata = fs::symlink_metadata(path).ok();
+        let is_dir = metadata.as_ref().map_or(false, |m| m.is_dir());
+        let is_symlink = metadata.as_ref().map_or(false, |m| m.is_symlink());
+        let is_executable = metadata.as_ref().map_or(false, |m| is_executable(m));
+        let size = metadata.as_ref().map_or(0, |m| m.len());
+        
+        // Update counts
+        if is_dir {
+            self.dir_count += 1;
+        } else {
+            self.file_count += 1;
+        }
+        
+        // Get name
         let name = if depth == 0 {
-            path.to_string_lossy()
+            path.to_string_lossy().to_string()
         } else {
             path.file_name()
-                .map(|n| n.to_string_lossy())
-                .unwrap_or_else(|| path.to_string_lossy())
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| path.to_string_lossy().to_string())
         };
-        writeln!(self.stdout, "{}", name)?;
+        
+        // Apply color based on file type
+        let colored_name = if self.color_enabled {
+            if is_dir {
+                name.blue().bold().to_string()
+            } else if is_symlink {
+                name.cyan().to_string()
+            } else if is_executable {
+                name.green().to_string()
+            } else {
+                name
+            }
+        } else {
+            name
+        };
+        
+        // Build the output line
+        let mut output = colored_name;
+        
+        // Add size and line count if requested
+        if metadata.is_some() {
+            let mut details = Vec::new();
+            
+            if self.show_size && !is_dir {
+                details.push(crate::formatter::format_size(size));
+            }
+            
+            if self.show_lines && !is_dir && size <= self.max_file_size {
+                if let Ok(lines) = count_lines(path, self.max_file_size) {
+                    if lines > 0 {
+                        details.push(format!("{} lines", lines));
+                    }
+                }
+            }
+            
+            if !details.is_empty() {
+                let details_str = format!(" ({})", details.join(", "));
+                output.push_str(&if self.color_enabled {
+                    details_str.dimmed().to_string()
+                } else {
+                    details_str
+                });
+            }
+        }
+        
+        writeln!(self.stdout, "{}", output)?;
         
         // Recurse if directory
         if path.is_dir() && depth < walker.filter_opts.max_depth.unwrap_or(usize::MAX) {
