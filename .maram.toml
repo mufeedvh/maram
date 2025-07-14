@@ -1,0 +1,47 @@
+# maram configuration file
+# Place this file at ~/.maram.toml to set default options
+
+[display]
+# Use Unicode characters for tree drawing (default: true)
+unicode = true
+
+# Show file sizes by default (default: true)
+show_size = true
+
+# Show line counts for text files (default: false)
+show_lines = false
+
+# Show directory sizes (default: false)
+dir_sizes = false
+
+# Show total size summary (default: true)
+total_size = true
+
+[filters]
+# Show hidden files (files starting with .) by default (default: false)
+show_hidden = false
+
+# Respect .gitignore files by default (default: false)
+gitignore = false
+
+# Maximum depth to traverse (default: unlimited)
+# max_depth = 10
+
+# Maximum number of directories to show per level (default: unlimited)
+# max_dirs = 50
+
+# Maximum number of files to show per level (default: unlimited)
+# max_files = 100
+
+# Default sort field: "name", "size", "time", "ext", or "lines" (default: none)
+# sort_by = "name"
+
+# Reverse sort order by default (default: false)
+reverse_sort = false
+
+[performance]
+# Number of threads for parallel operations (0 = auto-detect) (default: 0)
+threads = 0
+
+# Maximum file size for line counting in bytes (default: 1GB)
+max_file_size = 1073741824

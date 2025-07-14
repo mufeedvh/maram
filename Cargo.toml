@@ -1,0 +1,73 @@
+[package]
+name = "maram"
+version = "0.1.0"
+edition = "2021"
+authors = ["Mufeed VH <mufeed@asterisk.so>"]
+license = "MIT"
+description = "A modern, high-performance alternative to the Unix tree command"
+repository = "https://github.com/mufeedvh/maram"
+keywords = ["tree", "directory", "cli", "filesystem", "visualization"]
+categories = ["command-line-utilities", "filesystem"]
+
+[[bin]]
+name = "maram"
+path = "src/main.rs"
+
+[features]
+default = []
+jemalloc = ["tikv-jemallocator"]
+
+[dependencies]
+clap = { version = "4.5", features = ["derive", "cargo"] }
+rayon = "1.10"
+colored = "3.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+ignore = "0.4"
+regex = "1.11"
+thiserror = "2.0"
+log = "0.4"
+env_logger = "0.11"
+toml = "0.9"
+atty = "0.2"
+term_size = "0.3"
+num_cpus = "1.17"
+dirs = "6.0"
+libc = "0.2"
+memchr = "2.7"
+errno = "0.3"
+tikv-jemallocator = { version = "0.6", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["fileapi", "minwinbase", "handleapi", "winnt"] }
+
+[dev-dependencies]
+criterion = { version = "0.6", features = ["html_reports"] }
+tempfile = "3.20"
+assert_cmd = "2.0"
+predicates = "3.1"
+walkdir = "2.5"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+opt-level = 3
+strip = true
+# panic = "abort"
+overflow-checks = false
+
+[profile.release.package."*"]
+opt-level = 3
+codegen-units = 1
+
+[[bench]]
+name = "traversal"
+harness = false
+
+[[bench]]
+name = "line_counting"
+harness = false
+
+[[bench]]
+name = "walkdir_comparison"
+harness = false
