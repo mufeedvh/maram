@@ -191,7 +191,7 @@ mod tests {
     fn test_default_config() {
         let config = Config::default();
         assert!(config.display.show_size);
-        assert!(!config.display.unicode);
+        assert!(config.display.unicode);
         assert_eq!(config.performance.max_file_size, 1_073_741_824);
     }
     
